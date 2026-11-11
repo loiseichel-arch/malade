@@ -1,0 +1,44 @@
+# Builds the plugin on a GitHub Mac at every push (or by hand from the
+# Actions tab) and publishes the VST3, AU, AAX and Standalone as a download.
+
+name: Build macOS
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -G Xcode
+
+      - name: Build (Release, universal)
+        run: cmake --build build --config Release --parallel -- -quiet
+
+      - name: Sign ad hoc and package
+        run: |
+          set -e
+          R=build/Vibrato_artefacts/Release
+          mkdir -p out
+          for b in "$R/VST3/Vibrato.vst3" "$R/AU/Vibrato.component" "$R/AAX/Vibrato.aaxplugin" "$R/Standalone/Vibrato.app"; do
+            if [ -d "$b" ]; then
+              codesign --force --deep --sign - "$b"
+              ditto -c -k --keepParent "$b" "out/$(basename "$b").zip"
+            fi
+          done
+          cp INSTALL_MAC.txt out/
+          ls -la out
+
+      - name: Publish the download
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vibrato-macOS
+          path: out/
+          retention-days: 30

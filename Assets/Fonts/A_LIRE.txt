@@ -1,0 +1,4 @@
+Dépose ici les polices .ttf ou .otf (optionnel) :
+  - PatrickHand-Regular.ttf  (texte)
+  - Caveat-Bold.ttf          (titres)
+Gratuites sur fonts.google.com. Sans elles, le plugin utilise Chalkboard SE et Marker Felt du Mac.
