@@ -92,6 +92,7 @@ void VibratoProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     uiDepthPct.store (engine.getCurrentDepthPct());
     uiLevelDb.store (engine.getInputLevelDb());
     uiPhase.store (engine.getPhase());
+    uiCycle.store ((int) (engine.getCycle() & 0x7fffffff));
 }
 
 void VibratoProcessor::getStateInformation (juce::MemoryBlock& destData)

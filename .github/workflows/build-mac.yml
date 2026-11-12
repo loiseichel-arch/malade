@@ -31,9 +31,9 @@ jobs:
       - name: Sign ad hoc and package
         run: |
           set -e
-          R=build/Vibrato_artefacts/Release
+          R=build/Malade_artefacts/Release
           mkdir -p out
-          for b in "$R/VST3/Vibrato.vst3" "$R/AU/Vibrato.component" "$R/AAX/Vibrato.aaxplugin" "$R/Standalone/Vibrato.app"; do
+          for b in "$R/VST3/Malade.vst3" "$R/AU/Malade.component" "$R/AAX/Malade.aaxplugin" "$R/Standalone/Malade.app"; do
             if [ -d "$b" ]; then
               codesign --force --deep --sign - "$b"
               ditto -c -k --keepParent "$b" "out/$(basename "$b").zip"
@@ -45,6 +45,6 @@ jobs:
       - name: Publish the download
         uses: actions/upload-artifact@v4
         with:
-          name: Vibrato-macOS-${{ matrix.runner }}
+          name: Malade-macOS-${{ matrix.runner }}
           path: out/
           retention-days: 30

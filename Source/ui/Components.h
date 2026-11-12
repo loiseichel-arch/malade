@@ -30,8 +30,9 @@ public:
     {
         attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (state, paramId, slider);
         if (auto* p = state.getParameter (paramId))
-            slider.setDoubleClickReturnValue (true, p->convertFrom0to1 (p->getDefaultValue()));
-        slider.setTooltip (label.toLowerCase() + " (double-click to reset)");
+            slider.setDoubleClickReturnValue (true, p->convertFrom0to1 (p->getDefaultValue()),
+                                              juce::ModifierKeys::altModifier);
+        slider.setTooltip (label.toLowerCase() + " (alt-click to reset)");
     }
 
     // norm = 0..1 position to show, text = value to print. nullopt = normal knob.
@@ -153,11 +154,18 @@ public:
         for (int i = 0; i < 6; ++i)
         {
             auto* b = buttons.add (new ShapeButton (i, names[i]));
-            b->onClick = [this, i] { if (attachment) attachment->setValueAsCompleteGesture ((float) i); };
+            b->onClick = [this, i]
+            {
+                if (attachment == nullptr) return;
+                // Alt-click: back to the default shape (Sine).
+                const bool alt = juce::ModifierKeys::currentModifiers.isAltDown();
+                attachment->setValueAsCompleteGesture (alt ? (float) defaultShape : (float) i);
+            };
             addAndMakeVisible (b);
         }
         if (auto* p = state.getParameter ("shape"))
         {
+            defaultShape = juce::roundToInt (p->convertFrom0to1 (p->getDefaultValue()));
             attachment = std::make_unique<juce::ParameterAttachment> (*p, [this] (float v) { select (juce::roundToInt (v)); });
             attachment->sendInitialUpdate();
         }
@@ -202,18 +210,19 @@ private:
 
     juce::OwnedArray<juce::Button> buttons;
     std::unique_ptr<juce::ParameterAttachment> attachment;
+    int defaultShape = 0;
 };
 
 // ============================================================================
-// Shows two cycles of the LFO pitch shape, with a dot at the current phase.
+// Shows two cycles of the LFO pitch shape (static drawing).
 class LfoScope : public juce::Component
 {
 public:
-    void setState (int newShape, float newPhase)
+    void setShape (int newShape)
     {
-        if (newShape != shape || std::abs (newPhase - phase) > 0.002f)
+        if (newShape != shape)
         {
-            shape = newShape; phase = newPhase;
+            shape = newShape;
             repaint();
         }
     }
@@ -247,18 +256,66 @@ public:
             if (i == 0) wave.startNewSubPath (pt); else wave.lineTo (pt);
         }
         sketch::stroke (g, wave, 2.2f);
-
-        const float x = inner.getX() + phase * 0.5f * inner.getWidth();
-        const auto dot = juce::Rectangle<float> (10.0f, 10.0f).withCentre ({ x, mid - pitchShape (shape, phase, 0) * amp });
-        g.setColour (sketch::colour::accent);
-        g.fillEllipse (dot);
-        g.setColour (sketch::colour::ink);
-        g.drawEllipse (dot, 1.4f);
     }
 
 private:
     int shape = 0;
-    float phase = 0.0f;
+};
+
+// ============================================================================
+// "Rate" LED next to the LFO title, like the one on a Jupiter-4: its
+// brightness follows the LFO (0 = off, 1 = fully lit), fading smoothly.
+class RateLed : public juce::Component
+{
+public:
+    RateLed() { setInterceptsMouseClicks (false, false); }
+
+    void setBrightness (float b)
+    {
+        b = juce::jlimit (0.0f, 1.0f, b);
+        if (std::abs (b - brightness) > 0.01f)
+        {
+            brightness = b;
+            repaint();
+        }
+    }
+
+    void paint (juce::Graphics& g) override
+    {
+        const auto c = getLocalBounds().toFloat().getCentre();
+        const auto dot = juce::Rectangle<float> (10.0f, 10.0f).withCentre (c);
+        const float b = brightness;
+
+        g.setColour (sketch::colour::accent.withAlpha (0.45f * b));
+        g.fillEllipse (dot.expanded (3.0f + 2.0f * b));
+        g.setColour (sketch::colour::knob.interpolatedWith (sketch::colour::accent, 0.15f + 0.85f * b));
+        g.fillEllipse (dot);
+        g.setColour (sketch::colour::ink);
+        g.drawEllipse (dot, 1.3f);
+    }
+
+private:
+    float brightness = 0.0f;
+};
+
+// ============================================================================
+// On/off switch that goes back to its default state on alt-click.
+class ResetToggle : public juce::ToggleButton
+{
+public:
+    explicit ResetToggle (const juce::String& buttonText = {}, bool defaultOn = false)
+        : juce::ToggleButton (buttonText), defaultState (defaultOn) {}
+
+protected:
+    void clicked (const juce::ModifierKeys& mods) override
+    {
+        if (mods.isAltDown())
+            setToggleState (defaultState, juce::sendNotificationSync);
+        juce::ToggleButton::clicked (mods);
+    }
+
+private:
+    bool defaultState;
 };
 
 // ============================================================================

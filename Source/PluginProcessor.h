@@ -43,6 +43,7 @@ public:
     std::atomic<float> uiDepthPct   { 0.0f };
     std::atomic<float> uiLevelDb    { -120.0f };
     std::atomic<float> uiPhase      { 0.0f };
+    std::atomic<int>   uiCycle      { 0 };
     std::atomic<double> uiBpm       { 120.0 };
 
 private:

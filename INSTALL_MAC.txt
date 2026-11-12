@@ -1,26 +1,31 @@
-INSTALLER VIBRATO SUR TON MAC
-=============================
+INSTALLER MALADE SUR TON MAC
+============================
 
 1. Dézippe le fichier téléchargé, puis dézippe chaque plugin.
 
 2. Copie les plugins :
-   - Vibrato.vst3       ->  ~/Library/Audio/Plug-Ins/VST3/
-   - Vibrato.component  ->  ~/Library/Audio/Plug-Ins/Components/
-   - Vibrato.app        ->  où tu veux (Applications par exemple)
+   - Malade.vst3       ->  ~/Library/Audio/Plug-Ins/VST3/
+   - Malade.component  ->  ~/Library/Audio/Plug-Ins/Components/
+   - Malade.app        ->  où tu veux (Applications par exemple)
 
    (Dans le Finder : menu Aller > Aller au dossier..., puis colle le chemin.)
 
 3. Le plugin n'est pas signé par Apple : macOS le bloque au début.
    Ouvre le Terminal et colle ces commandes :
 
-   xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Vibrato.vst3
-   xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/Vibrato.component
+   xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Malade.vst3
+   xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/Malade.component
    killall -9 AudioComponentRegistrar
 
-   (Pour l'app : xattr -dr com.apple.quarantine /Applications/Vibrato.app)
+   (Pour l'app : xattr -dr com.apple.quarantine /Applications/Malade.app)
 
 4. Relance ton logiciel audio et fais un nouveau scan des plugins.
+   Malade apparaît sous le constructeur « Planet Gloria ».
 
-AAX (Pro Tools) : Vibrato.aaxplugin n'est pas signé PACE. Il ne se charge
+   Ancien « Vibrato » : supprime Vibrato.vst3 et Vibrato.component des
+   mêmes dossiers. Dans tes sessions, remplace Vibrato par Malade (les
+   réglages ne sont pas repris automatiquement).
+
+AAX (Pro Tools) : Malade.aaxplugin n'est pas signé PACE. Il ne se charge
 que dans Pro Tools Developer, à copier dans :
    /Library/Application Support/Avid/Audio/Plug-Ins/

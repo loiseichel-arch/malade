@@ -29,10 +29,11 @@ private:
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
     // ---- Main window ----
-    juce::ToggleButton activeButton { "on" }, syncButton { "tempo sync" };
+    ResetToggle activeButton { "on", true }, syncButton { "tempo sync", false };
     std::unique_ptr<ButtonAttachment> activeAtt, syncAtt;
 
     LfoScope scope;
+    RateLed rateLed;
     ShapeSelector shapes { proc.apvts };
 
     SketchKnob rate     { "RATE", 112 }, rateSync { "RATE", 112 }, depth { "DEPTH", 112 };
@@ -46,7 +47,7 @@ private:
     SketchKnob threshold { "THRESHOLD", 58 };
     LevelMeter meter;
 
-    juce::ToggleButton rateMoveButton, depthMoveButton;
+    ResetToggle rateMoveButton, depthMoveButton;
     std::unique_ptr<ButtonAttachment> rateMoveAtt, depthMoveAtt;
 
     SketchKnob rate1 { "RATE 1", 54 }, rate2 { "RATE 2", 54 }, rate1Sync { "RATE 1", 54 }, rate2Sync { "RATE 2", 54 },

@@ -308,6 +308,7 @@ public:
     float    getInputLevelDb()    const { return displayLevelDb; }
     uint32_t getTriggerCount()    const { return triggerCount; }
     float    getPhase()           const { return (float) phase; }
+    uint64_t getCycle()           const { return cycle; }
 
     // Delay curves: normalised integral of the pitch shape, in -1..1,
     // continuous at the cycle wrap. k = cycle index (used by Random).

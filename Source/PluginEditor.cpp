@@ -15,6 +15,7 @@ VibratoEditor::VibratoEditor (VibratoProcessor& p)
     addAndMakeVisible (activeButton);
     addAndMakeVisible (syncButton);
     addAndMakeVisible (scope);
+    addAndMakeVisible (rateLed);
     addAndMakeVisible (shapes);
 
     rate.attach     (st, pid::rate);
@@ -59,7 +60,7 @@ VibratoEditor::VibratoEditor (VibratoProcessor& p)
 
     setEnvelopeOpen ((bool) st.state.getProperty ("envOpen", false));
     timerCallback();
-    startTimerHz (30);
+    startTimerHz (60);   // smooth rate LED
 }
 
 VibratoEditor::~VibratoEditor()
@@ -142,7 +143,14 @@ void VibratoEditor::timerCallback()
     depth.setLed (depthMove);
 
     if (auto* s = proc.apvts.getRawParameterValue (pid::shape))
-        scope.setState (juce::roundToInt (s->load()), proc.uiPhase.load());
+    {
+        const int shape = juce::roundToInt (s->load());
+        scope.setShape (shape);
+
+        // Rate LED: lit at the top of the LFO, dark at the bottom. Off when the plugin is off.
+        const float v = pitchShape (shape, juce::jlimit (0.0f, 0.9999f, proc.uiPhase.load()), proc.uiCycle.load());
+        rateLed.setBrightness (paramOn (pid::active) ? 0.5f * (1.0f + juce::jlimit (-1.0f, 1.0f, v)) : 0.0f);
+    }
 
     if (envelopeOpen)
         if (auto* t = proc.apvts.getRawParameterValue (pid::threshold))
@@ -158,10 +166,10 @@ void VibratoEditor::paint (juce::Graphics& g)
 
     g.setColour (colour::accent);
     g.setFont (fonts->title (56.0f));
-    g.drawText ("Vibrato", juce::Rectangle<float> (400.0f, 12.0f, 290.0f, 62.0f), juce::Justification::centredRight, false);
+    g.drawText ("Malade", juce::Rectangle<float> (400.0f, 12.0f, 290.0f, 62.0f), juce::Justification::centredRight, false);
     g.setColour (colour::soft);
     g.setFont (fonts->hand (14.0f));
-    g.drawText ("v0.1", juce::Rectangle<float> (694.0f, 44.0f, 40.0f, 18.0f), juce::Justification::centredLeft, false);
+    g.drawText ("v0.2", juce::Rectangle<float> (694.0f, 44.0f, 40.0f, 18.0f), juce::Justification::centredLeft, false);
 
     auto heading = [&] (const juce::String& text, float x, float y)
     {
@@ -209,6 +217,11 @@ void VibratoEditor::resized()
     // ---- Main window ----
     activeButton.setBounds (28, 30, 110, 28);
     scope.setBounds  (28, 106, 272, 104);
+    {
+        // LED just right of the "LFO" title.
+        const float w = juce::GlyphArrangement::getStringWidth (fonts->hand (18.0f), "LFO");
+        rateLed.setBounds (28 + juce::roundToInt (w) + 8, 80, 20, 20);
+    }
     shapes.setBounds (28, 218, 272, 32);
     syncButton.setBounds (28, 260, 180, 28);
 
