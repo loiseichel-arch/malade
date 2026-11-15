@@ -1,13 +1,16 @@
 cmake_minimum_required (VERSION 3.22)
 
-project (Malade VERSION 0.2.0 LANGUAGES C CXX)
+# Universal binary (Apple Silicon + Intel), macOS 11 and later.
+# These two must be set BEFORE project(): set after it, they are ignored and
+# the plugin only runs on the build machine's chip and macOS version.
+set (CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "")
+set (CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "")
+
+project (Malade VERSION 0.2.1 LANGUAGES C CXX)
 
 set (CMAKE_CXX_STANDARD 17)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Universal binary (Apple Silicon + Intel), macOS 11 and later.
-set (CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "")
-set (CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "")
 
 # ---- JUCE ------------------------------------------------------------------
 # Either point JUCE_PATH to a JUCE folder you already have, or leave it empty
