@@ -58,7 +58,7 @@ build/Malade_artefacts/Release/Standalone/Malade.app
 
 Tu peux aussi ouvrir `build/Malade.xcodeproj` dans Xcode et compiler depuis là.
 
-Sur Windows (Visual Studio 2022) : `cmake -B build -G "Visual Studio 17 2022" -A x64` puis `cmake --build build --config Release`.
+Sur Windows (Visual Studio) : `cmake -B build -A x64` puis `cmake --build build --config Release`.
 
 ## Sans compiler : la compilation automatique sur GitHub
 
