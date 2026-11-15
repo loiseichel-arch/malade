@@ -44,6 +44,8 @@ public:
     std::atomic<float> uiLevelDb    { -120.0f };
     std::atomic<float> uiPhase      { 0.0f };
     std::atomic<int>   uiCycle      { 0 };
+    std::atomic<uint32_t> uiTriggers { 0 };     // counts detected attacks (LED trig)
+    std::atomic<bool>  uiHasSidechain { false };
     std::atomic<double> uiBpm       { 120.0 };
 
 private:
@@ -52,7 +54,8 @@ private:
     {
         std::atomic<float> *rate, *rateDiv, *sync, *depth, *shape, *width, *flutter, *vintage, *mix, *output, *active,
                            *threshold, *rateMove, *rate1, *rate2, *rate1Div, *rate2Div, *rateTime,
-                           *depthMove, *delay, *depth1, *depth2, *depthTime;
+                           *depthMove, *delay, *depth1, *depth2, *depthTime,
+                           *detSource, *contrast, *scHp, *scLp, *listen;
     } raw {};
     juce::RangedAudioParameter* rateParam = nullptr;
 

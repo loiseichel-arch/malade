@@ -40,7 +40,8 @@ struct Fonts
 
     juce::Font hand (float height) const
     {
-        if (handTf != nullptr) return juce::Font (juce::FontOptions (handTf).withHeight (height));
+        // Patrick Hand draws smaller than Chalkboard at the same height: scale it up.
+        if (handTf != nullptr) return juce::Font (juce::FontOptions (handTf).withHeight (height * 1.14f));
         return juce::Font (juce::FontOptions ("Chalkboard SE", height, juce::Font::plain));
     }
 

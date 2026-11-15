@@ -319,7 +319,8 @@ private:
 };
 
 // ============================================================================
-// Input level bar with the threshold mark.
+// Detection level bar with the threshold mark, and the "trig" LED that
+// flashes on every detected attack.
 class LevelMeter : public juce::Component
 {
 public:
@@ -332,9 +333,26 @@ public:
         }
     }
 
+    // Call at every frame with the processor's trigger count.
+    void setTriggerCount (uint32_t count)
+    {
+        if (count != lastCount) { lastCount = count; led = 1.0f; repaint(); }
+        else if (led > 0.0f)    { led = std::max (0.0f, led - 0.12f); repaint(); }
+    }
+
     void paint (juce::Graphics& g) override
     {
-        const auto r = getLocalBounds().toFloat().reduced (1.5f);
+        // LED on the right.
+        const auto ledArea = getLocalBounds().toFloat().removeFromRight (22.0f);
+        const auto dot = juce::Rectangle<float> (12.0f, 12.0f).withCentre (ledArea.getCentre());
+        g.setColour (sketch::colour::accent.withAlpha (0.4f * led));
+        g.fillEllipse (dot.expanded (4.0f * led));
+        g.setColour (sketch::colour::paper.interpolatedWith (sketch::colour::accent, 0.12f + 0.88f * led));
+        g.fillEllipse (dot);
+        g.setColour (sketch::colour::ink);
+        g.drawEllipse (dot, 1.3f);
+
+        const auto r = getLocalBounds().toFloat().withTrimmedRight (26.0f).reduced (1.5f);
         auto toX = [&] (float db) { return r.getX() + r.getWidth() * juce::jlimit (0.0f, 1.0f, (db + 60.0f) / 60.0f); };
 
         g.setColour (sketch::colour::knob);
@@ -347,7 +365,96 @@ public:
     }
 
 private:
-    float level = -120.0f, threshold = -30.0f;
+    float level = -120.0f, threshold = -30.0f, led = 0.0f;
+    uint32_t lastCount = 0;
+};
+
+// ============================================================================
+// Two joined pills choosing a 2-value parameter (detection source).
+// Alt-click: back to the default.
+class SegmentedChoice : public juce::Component
+{
+public:
+    SegmentedChoice (juce::RangedAudioParameter& p, const juce::StringArray& labels) : param (p)
+    {
+        for (int i = 0; i < labels.size(); ++i)
+        {
+            auto* b = buttons.add (new Seg (labels[i], i));
+            b->onClick = [this, i]
+            {
+                const bool alt = juce::ModifierKeys::currentModifiers.isAltDown();
+                attachment->setValueAsCompleteGesture (alt ? param.convertFrom0to1 (param.getDefaultValue()) : (float) i);
+            };
+            addAndMakeVisible (b);
+        }
+        attachment = std::make_unique<juce::ParameterAttachment> (p, [this] (float v)
+        {
+            for (int i = 0; i < buttons.size(); ++i)
+            {
+                static_cast<Seg*> (buttons[i])->selected = (i == juce::roundToInt (v));
+                buttons[i]->repaint();
+            }
+        });
+        attachment->sendInitialUpdate();
+    }
+
+    void resized() override
+    {
+        const int w = getWidth() / juce::jmax (1, buttons.size());
+        for (int i = 0; i < buttons.size(); ++i)
+            buttons[i]->setBounds (i * w, 0, i == buttons.size() - 1 ? getWidth() - i * w : w, getHeight());
+    }
+
+private:
+    struct Seg : juce::Button
+    {
+        Seg (const juce::String& n, int i) : juce::Button (n), index (i) { setTooltip (n + " (alt-click to reset)"); }
+
+        void paintButton (juce::Graphics& g, bool over, bool) override
+        {
+            const auto r = getLocalBounds().toFloat().reduced (1.0f);
+            sketch::box (g, r, sketch::seedOf (getName()),
+                         selected ? sketch::colour::accent : (over ? sketch::colour::paper : sketch::colour::knob), 1.8f);
+            g.setColour (selected ? sketch::colour::knob : sketch::colour::ink);
+            g.setFont (fonts->hand (16.0f));
+            g.drawText (getName(), r, juce::Justification::centred, false);
+        }
+
+        int index;
+        bool selected = false;
+        juce::SharedResourcePointer<sketch::Fonts> fonts;
+    };
+
+    juce::RangedAudioParameter& param;
+    juce::OwnedArray<juce::Button> buttons;
+    std::unique_ptr<juce::ParameterAttachment> attachment;
+};
+
+// "listen": a pill that lights up when on.
+class ListenButton : public juce::ToggleButton
+{
+public:
+    ListenButton() : juce::ToggleButton ("listen") { setTooltip ("hear the detection signal (alt-click to reset)"); }
+
+    void paintButton (juce::Graphics& g, bool over, bool) override
+    {
+        const bool on = getToggleState();
+        const auto r = getLocalBounds().toFloat().reduced (2.0f);
+        sketch::box (g, r, 4711, on ? sketch::colour::accent : (over ? sketch::colour::paper : sketch::colour::knob), 2.0f);
+        g.setColour (on ? sketch::colour::knob : sketch::colour::ink);
+        g.setFont (fonts->hand (18.0f));
+        g.drawText ("listen", r, juce::Justification::centred, false);
+    }
+
+protected:
+    void clicked (const juce::ModifierKeys& mods) override
+    {
+        if (mods.isAltDown()) setToggleState (false, juce::sendNotificationSync);
+        juce::ToggleButton::clicked (mods);
+    }
+
+private:
+    juce::SharedResourcePointer<sketch::Fonts> fonts;
 };
 
 // ============================================================================

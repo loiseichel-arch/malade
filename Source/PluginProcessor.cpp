@@ -4,7 +4,8 @@
 VibratoProcessor::VibratoProcessor()
     : AudioProcessor (BusesProperties()
                         .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
+                        .withInput  ("Sidechain", juce::AudioChannelSet::stereo(), false)),
       apvts (*this, nullptr, "VibratoState", params::createLayout())
 {
     auto get = [this] (const char* pid)
@@ -23,6 +24,8 @@ VibratoProcessor::VibratoProcessor()
     raw.rate1Div  = get (id::rate1Div);  raw.rate2Div = get (id::rate2Div); raw.rateTime = get (id::rateTime);
     raw.depthMove = get (id::depthMove); raw.delay    = get (id::delay);
     raw.depth1    = get (id::depth1);    raw.depth2   = get (id::depth2);   raw.depthTime = get (id::depthTime);
+    raw.detSource = get (id::detSource); raw.contrast = get (id::contrast);
+    raw.scHp      = get (id::scHp);      raw.scLp     = get (id::scLp);     raw.listen    = get (id::listen);
 
     rateParam = apvts.getParameter (id::rate);
 }
@@ -37,15 +40,38 @@ bool VibratoProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
     const auto out = layouts.getMainOutputChannelSet();
     if (out != juce::AudioChannelSet::mono() && out != juce::AudioChannelSet::stereo())
         return false;
-    return layouts.getMainInputChannelSet() == out;
+    if (layouts.getMainInputChannelSet() != out)
+        return false;
+    // Sidechain: off, mono or stereo.
+    if (layouts.inputBuses.size() > 1)
+    {
+        const auto sc = layouts.getChannelSet (true, 1);
+        if (! sc.isDisabled() && sc != juce::AudioChannelSet::mono() && sc != juce::AudioChannelSet::stereo())
+            return false;
+    }
+    return true;
 }
 
 void VibratoProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
 
-    for (auto ch = getTotalNumInputChannels(); ch < getTotalNumOutputChannels(); ++ch)
-        buffer.clear (ch, 0, buffer.getNumSamples());
+    auto main = getBusBuffer (buffer, false, 0);   // in place: main input = output
+    const int mainIn = getMainBusNumInputChannels();
+    for (auto ch = mainIn; ch < main.getNumChannels(); ++ch)
+        main.clear (ch, 0, main.getNumSamples());
+
+    // Sidechain, when the host connected one.
+    const float* const* scPtr = nullptr;
+    int scCh = 0;
+    if (getBusCount (true) > 1)
+        if (auto* bus = getBus (true, 1); bus != nullptr && bus->isEnabled())
+        {
+            auto scBuf = getBusBuffer (buffer, true, 1);
+            scPtr = scBuf.getArrayOfReadPointers();
+            scCh = scBuf.getNumChannels();
+        }
+    uiHasSidechain.store (scCh > 0);
 
     // Host tempo, for tempo sync.
     if (auto* ph = getPlayHead())
@@ -78,8 +104,13 @@ void VibratoProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     p.depth1Pct    = raw.depth1->load();
     p.depth2Pct    = raw.depth2->load();
     p.depthTimeSec = raw.depthTime->load();
+    p.useSidechain = idx (raw.detSource) == 1;
+    p.contrastPct  = raw.contrast->load();
+    p.scHpHz       = raw.scHp->load();
+    p.scLpHz       = raw.scLp->load();
+    p.listen       = on (raw.listen);
 
-    engine.process (buffer.getArrayOfWritePointers(), buffer.getNumChannels(), buffer.getNumSamples(), p);
+    engine.process (main.getArrayOfWritePointers(), main.getNumChannels(), main.getNumSamples(), p, scPtr, scCh);
 
     // Live values for the knobs, LED and meters.
     const float hz = engine.getCurrentRateHz();
@@ -92,6 +123,7 @@ void VibratoProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     uiDepthPct.store (engine.getCurrentDepthPct());
     uiLevelDb.store (engine.getInputLevelDb());
     uiPhase.store (engine.getPhase());
+    uiTriggers.store (engine.getTriggerCount());
     uiCycle.store ((int) (engine.getCycle() & 0x7fffffff));
 }
 

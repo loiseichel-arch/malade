@@ -25,6 +25,17 @@
 //   Depth move: no vibrato for "Delay", a very short fade in to Depth 1,
 //               then a glide to Depth 2 over "Depth time".
 // Before the first attack, and once a glide is over, the end values hold.
+//
+// Detection (v0.3)
+// ----------------
+// Source: the input, or an external sidechain. The source goes through a
+// high-pass and a low-pass (SC HP / SC LP), then two level followers (fast
+// and slow). Contrast is an expander on the detection: the fast level is
+// pushed away from the slow one (in dB), so attacks jump out and sustains
+// and decays drop. A trigger needs the contrasted level above Threshold and
+// a jump above the average (+6 dB, down to +4 dB with Contrast); it re-arms as soon as the level falls
+// 6 dB under its own peak, or below Threshold, so close notes are caught.
+// Listen: the filtered detection source replaces the output.
 
 #pragma once
 
@@ -55,6 +66,11 @@ struct Params
 
     // Envelope panel
     float thresholdDb  = -30.0f;
+    bool  useSidechain = false;    // detection source: input (false) or sidechain (true)
+    float contrastPct  = 50.0f;    // 0..100, expander on the detection
+    float scHpHz       = 150.0f;   // <= 20 = off
+    float scLpHz       = 20000.0f; // >= 19900 = off
+    bool  listen       = false;    // hear the detection source
     bool  rateMove     = false;
     float rate1Hz      = 8.0f;
     float rate2Hz      = 2.0f;
@@ -87,7 +103,7 @@ public:
         minDelay      = (float) (sr * 0.0005) + 2.0f;
         flutterMax    = (float) (sr * 0.00025); // 0.25 ms at 100 %
         fadeInSamples = (float) (sr * 0.025);   // 25 ms fade after the delay
-        holdoffSamples = (int64_t) (sr * 0.08); // min time between two attacks
+        holdoffSamples = (int64_t) (sr * 0.06); // min time between two attacks
         xfadeLen      = std::max (1, (int) (sr * 0.03)); // 30 ms shape cross-fade
 
         kFastAtt  = coef (1.0);   kFastRel = coef (30.0);
@@ -111,7 +127,9 @@ public:
         for (auto& b : buffers) std::fill (b.begin(), b.end(), 0.0f);
         writeIndex = 0;
         phase = 0.0; cycle = 0;
-        fastEnv = slowEnv = 0.0f;
+        fastEnv = slowEnv = 0.0f; peakSinceTrigger = 0.0f; detLevel = 0.0f;
+        hp1 = hp2 = lp1 = lp2 = {};
+        lastHp = lastLp = -1.0f;
         armed = true; hasTriggered = false;
         sinceTrigger = 0; sinceLastTrigger = holdoffSamples;
         triggerCount = 0;
@@ -120,7 +138,9 @@ public:
         n1 = n2 = 0.0f;
     }
 
-    void process (float* const* io, int numChannels, int numSamples, const Params& p)
+    // sc / scChannels: the sidechain input (may be null / 0).
+    void process (float* const* io, int numChannels, int numSamples, const Params& p,
+                  const float* const* sc = nullptr, int scChannels = 0)
     {
         const int nch = std::min ({ numChannels, channels, maxChannels });
         if (nch <= 0 || numSamples <= 0 || buffers[0].empty()) return;
@@ -136,6 +156,15 @@ public:
         const float widthOff = std::clamp (p.widthPct, 0.0f, 100.0f) * 0.005f; // 0..0.5 cycle
         const float flAmt   = std::clamp (p.flutterPct, 0.0f, 100.0f) * 0.01f * flutterMax;
         const float thrLin  = dbToGain (p.thresholdDb);
+        const float contrast = std::clamp (p.contrastPct, 0.0f, 100.0f) * 0.03f;   // 0..3 (up to 1:4)
+        // Jump needed above the average level: +6 dB at 0 %, down to +4 dB at 100 %
+        // (contrast also makes softer attacks count).
+        const float jump = 2.0f - 0.0042f * std::clamp (p.contrastPct, 0.0f, 100.0f);
+        const bool  detHp = p.scHpHz > 20.5f, detLp = p.scLpHz < 19900.0f;
+        if (detHp && std::abs (p.scHpHz - lastHp) > 0.01f) { setHighPass (hpC, p.scHpHz); lastHp = p.scHpHz; }
+        if (detLp && std::abs (p.scLpHz - lastLp) > 0.01f) { setLowPass  (lpC, p.scLpHz); lastLp = p.scLpHz; }
+        const bool  fromSc = p.useSidechain && sc != nullptr && scChannels > 0;
+        const int   srcCh  = fromSc ? std::min (scChannels, maxChannels) : nch;
 
         const float logMain = std::log (std::max (0.01f, p.rateHz));
         const float logR1   = std::log (std::max (0.01f, p.rate1Hz));
@@ -166,22 +195,39 @@ public:
 
         for (int i = 0; i < numSamples; ++i)
         {
-            // ---- Onset detection (on the input) ----
-            float peak = 0.0f;
-            for (int c = 0; c < nch; ++c) peak = std::max (peak, std::abs (io[c][i]));
+            // ---- Onset detection ----
+            // Source (input or sidechain), mono, filtered.
+            float src = 0.0f;
+            for (int c = 0; c < srcCh; ++c) src += fromSc ? sc[c][i] : io[c][i];
+            src /= (float) std::max (1, srcCh);
+            if (detHp) src = biquad (hpC, hp2, biquad (hpC, hp1, src));
+            if (detLp) src = biquad (lpC, lp2, biquad (lpC, lp1, src));
+            detSource = src;
+
+            const float peak = std::abs (src);
             fastEnv = peak > fastEnv ? kFastAtt * fastEnv + (1.0f - kFastAtt) * peak
                                      : kFastRel * fastEnv + (1.0f - kFastRel) * peak;
             slowEnv = peak > slowEnv ? kSlowAtt * slowEnv + (1.0f - kSlowAtt) * peak
                                      : kSlowRel * slowEnv + (1.0f - kSlowRel) * peak;
 
-            if (fastEnv < slowEnv * 1.41f) armed = true;            // settled: ready for the next attack
-            if (armed && fastEnv > thrLin && fastEnv > slowEnv * 2.0f // +6 dB jump above the average
+            // Contrast: push the fast level away from the slow one (in dB).
+            const float ratio = (fastEnv + 1.0e-9f) / (slowEnv + 1.0e-9f);
+            detLevel = contrast > 0.0f ? fastEnv * std::pow (ratio, contrast) : fastEnv;
+
+            peakSinceTrigger = std::max (peakSinceTrigger, detLevel);
+            if (fastEnv < slowEnv * 1.41f                 // settled
+                || detLevel < thrLin * 0.7f               // fell back under the threshold
+                || detLevel < peakSinceTrigger * 0.5f)    // 6 dB under its own peak
+                armed = true;
+
+            if (armed && detLevel > thrLin && fastEnv > slowEnv * jump   // jump above the average
                 && sinceLastTrigger >= holdoffSamples)
             {
                 armed = false;
                 hasTriggered = true;
                 sinceTrigger = 0;
                 sinceLastTrigger = 0;
+                peakSinceTrigger = detLevel;
                 ++triggerCount;
             }
 
@@ -285,6 +331,10 @@ public:
                 io[ch][i] = (dry + mixSm * (wet - dry)) * gainSm;
             }
 
+            // Listen: hear the detection source instead of the effect.
+            if (p.listen)
+                for (int ch = 0; ch < nch; ++ch) io[ch][i] = detSource;
+
             snapNew = false;
             if (xfadeLeft > 0) --xfadeLeft;
 
@@ -299,7 +349,7 @@ public:
 
         displayRate  = std::exp (logRateSm);
         displayDepth = depthSm;
-        displayLevelDb = 20.0f * std::log10 (fastEnv + 1.0e-9f);
+        displayLevelDb = 20.0f * std::log10 (detLevel + 1.0e-9f);
     }
 
     // Values for the interface (read after process()).
@@ -349,6 +399,27 @@ public:
 
 private:
     float coef (double ms) const { return (float) std::exp (-1.0 / (ms * 0.001 * sr)); }
+
+    // ---- Detection filters (2nd order Butterworth, run twice = 24 dB/oct) ----
+    struct BiquadC { float b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0; };
+    struct BiquadS { float z1 = 0, z2 = 0; };
+    static float biquad (const BiquadC& c, BiquadS& s, float x)
+    {
+        const float y = c.b0 * x + s.z1;
+        s.z1 = c.b1 * x - c.a1 * y + s.z2;
+        s.z2 = c.b2 * x - c.a2 * y;
+        return y;
+    }
+    void setHighPass (BiquadC& c, float f) const
+    {
+        const double w = 2.0 * kPi * std::min ((double) f, sr * 0.45) / sr, al = std::sin (w) / (2.0 * 0.7071), cs = std::cos (w), a0 = 1 + al;
+        c = { (float) ((1 + cs) / 2 / a0), (float) (-(1 + cs) / a0), (float) ((1 + cs) / 2 / a0), (float) (-2 * cs / a0), (float) ((1 - al) / a0) };
+    }
+    void setLowPass (BiquadC& c, float f) const
+    {
+        const double w = 2.0 * kPi * std::min ((double) f, sr * 0.45) / sr, al = std::sin (w) / (2.0 * 0.7071), cs = std::cos (w), a0 = 1 + al;
+        c = { (float) ((1 - cs) / 2 / a0), (float) ((1 - cs) / a0), (float) ((1 - cs) / 2 / a0), (float) (-2 * cs / a0), (float) ((1 - al) / a0) };
+    }
     static float dbToGain (float db) { return std::pow (10.0f, db / 20.0f); }
 
     static float hashToUnit (uint64_t k)
@@ -397,7 +468,10 @@ private:
     double   phase = 0.0;
     uint64_t cycle = 0;
 
-    float fastEnv = 0, slowEnv = 0;
+    float fastEnv = 0, slowEnv = 0, detLevel = 0, peakSinceTrigger = 0, detSource = 0;
+    BiquadC hpC, lpC;
+    BiquadS hp1, hp2, lp1, lp2;
+    float lastHp = -1.0f, lastLp = -1.0f;
     bool  armed = true, hasTriggered = false;
     int64_t sinceTrigger = 0, sinceLastTrigger = 0;
     uint32_t triggerCount = 0;

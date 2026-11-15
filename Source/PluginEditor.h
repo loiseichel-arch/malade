@@ -19,7 +19,7 @@ private:
     void setEnvelopeOpen (bool open);
     bool paramOn (const char* pid) const;
 
-    static constexpr int W = 760, mainH = 460, envH = 290;
+    static constexpr int W = 760, mainH = 460, envH = 440;
 
     VibratoProcessor& proc;
     SketchLookAndFeel laf;
@@ -44,7 +44,10 @@ private:
 
     // ---- Envelope panel ----
     SketchTextButton closeButton { "", false, false };
-    SketchKnob threshold { "THRESHOLD", 58 };
+    SketchKnob threshold { "THRESHOLD", 58 }, contrast { "CONTRAST", 58 }, scHp { "SC HP", 58 }, scLp { "SC LP", 58 };
+    SegmentedChoice source { *proc.apvts.getParameter (params::id::detSource), { "input", "sidechain" } };
+    ListenButton listenButton;
+    std::unique_ptr<ButtonAttachment> listenAtt;
     LevelMeter meter;
 
     ResetToggle rateMoveButton, depthMoveButton;
@@ -55,6 +58,7 @@ private:
     SketchKnob delay { "DELAY", 54 }, depth1 { "DEPTH 1", 54 }, depth2 { "DEPTH 2", 54 }, depthTime { "TIME", 54 };
 
     bool envelopeOpen = false;
+    bool shownScHint = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VibratoEditor)
 };

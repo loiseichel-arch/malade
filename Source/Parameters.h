@@ -36,6 +36,13 @@ namespace id
     inline constexpr const char* depth1    = "depth1";
     inline constexpr const char* depth2    = "depth2";
     inline constexpr const char* depthTime = "depthTime";
+
+    // Detection (v0.3)
+    inline constexpr const char* detSource = "detSource";
+    inline constexpr const char* contrast  = "contrast";
+    inline constexpr const char* scHp      = "scHp";
+    inline constexpr const char* scLp      = "scLp";
+    inline constexpr const char* listen    = "listen";
 }
 
 // Tempo divisions, slowest to fastest (length in quarter notes).
@@ -92,6 +99,13 @@ inline juce::String fmtHz (float v, int)  { return juce::String (v, v < 10.0f ? 
 inline juce::String fmtPct (float v, int) { return juce::String (juce::roundToInt (v)) + "%"; }
 inline juce::String fmtDb (float v, int)  { return juce::String (v, 1) + " dB"; }
 inline juce::String fmtMs (float v, int)  { return juce::String (juce::roundToInt (v)) + " ms"; }
+inline juce::String fmtFreq (float v)
+{
+    if (v >= 1000.0f) return juce::String (v / 1000.0f, v < 10000.0f ? 1 : 0) + " kHz";
+    return juce::String (juce::roundToInt (v)) + " Hz";
+}
+inline juce::String fmtScHp (float v, int) { return v <= 20.5f ? "Off" : fmtFreq (v); }
+inline juce::String fmtScLp (float v, int) { return v >= 19900.0f ? "Off" : fmtFreq (v); }
 inline juce::String fmtSec (float v, int) { return v < 1.0f ? juce::String (juce::roundToInt (v * 1000.0f)) + " ms"
                                                             : juce::String (v, 2) + " s"; }
 
@@ -139,6 +153,16 @@ inline juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     addFloat (id::depth1,    "Depth 1",    pct, 45.0f, fmtPct, "%");
     addFloat (id::depth2,    "Depth 2",    pct, 15.0f, fmtPct, "%");
     addFloat (id::depthTime, "Depth Time", timeRange, 0.8f, fmtSec, "s");
+
+    // Detection (v0.3)
+    layout.add (std::make_unique<AudioParameterChoice> (ParameterID { id::detSource, 1 }, "Detection Source",
+                                                        StringArray { "Input", "Sidechain" }, 0));
+    addFloat (id::contrast, "Contrast", pct, 50.0f, fmtPct, "%");
+    auto hpRange = [] { NormalisableRange<float> r (20.0f, 2000.0f, 0.0f); r.setSkewForCentre (200.0f); return r; }();
+    auto lpRange = [] { NormalisableRange<float> r (1000.0f, 20000.0f, 0.0f); r.setSkewForCentre (4500.0f); return r; }();
+    addFloat (id::scHp, "SC HP", hpRange, 150.0f, fmtScHp, "Hz");
+    addFloat (id::scLp, "SC LP", lpRange, 20000.0f, fmtScLp, "Hz");
+    layout.add (std::make_unique<AudioParameterBool> (ParameterID { id::listen, 1 }, "Listen", false));
 
     return layout;
 }

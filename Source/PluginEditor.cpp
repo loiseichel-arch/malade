@@ -43,6 +43,10 @@ VibratoEditor::VibratoEditor (VibratoProcessor& p)
     depthMoveAtt = std::make_unique<ButtonAttachment> (st, pid::depthMove, depthMoveButton);
 
     threshold.attach (st, pid::threshold);
+    contrast.attach  (st, pid::contrast);
+    scHp.attach      (st, pid::scHp);
+    scLp.attach      (st, pid::scLp);
+    listenAtt = std::make_unique<ButtonAttachment> (st, pid::listen, listenButton);
     rate1.attach     (st, pid::rate1);
     rate2.attach     (st, pid::rate2);
     rate1Sync.attach (st, pid::rate1Div);
@@ -54,7 +58,8 @@ VibratoEditor::VibratoEditor (VibratoProcessor& p)
     depthTime.attach (st, pid::depthTime);
 
     for (juce::Component* c : std::initializer_list<juce::Component*> {
-             &closeButton, &threshold, &meter, &rateMoveButton, &depthMoveButton,
+             &closeButton, &threshold, &contrast, &scHp, &scLp, &source, &listenButton, &meter,
+             &rateMoveButton, &depthMoveButton,
              &rate1, &rate2, &rate1Sync, &rate2Sync, &rateTime, &delay, &depth1, &depth2, &depthTime })
         addChildComponent (c);
 
@@ -83,7 +88,8 @@ void VibratoEditor::setEnvelopeOpen (bool open)
     envelopeButton.setChevronDown (! open);
 
     for (juce::Component* c : std::initializer_list<juce::Component*> {
-             &closeButton, &threshold, &meter, &rateMoveButton, &depthMoveButton, &rateTime,
+             &closeButton, &threshold, &contrast, &scHp, &scLp, &source, &listenButton, &meter,
+             &rateMoveButton, &depthMoveButton, &rateTime,
              &delay, &depth1, &depth2, &depthTime })
         c->setVisible (open);
 
@@ -153,8 +159,15 @@ void VibratoEditor::timerCallback()
     }
 
     if (envelopeOpen)
+    {
         if (auto* t = proc.apvts.getRawParameterValue (pid::threshold))
             meter.setLevels (proc.uiLevelDb.load(), t->load());
+        meter.setTriggerCount (proc.uiTriggers.load());
+
+        // "no sidechain connected" hint under the meter.
+        const bool hint = paramOn (pid::detSource) && ! proc.uiHasSidechain.load();
+        if (hint != shownScHint) { shownScHint = hint; repaint (28, mainH + 194, 190, 18); }
+    }
 }
 
 void VibratoEditor::paint (juce::Graphics& g)
@@ -169,7 +182,7 @@ void VibratoEditor::paint (juce::Graphics& g)
     g.drawText ("Malade", juce::Rectangle<float> (400.0f, 12.0f, 290.0f, 62.0f), juce::Justification::centredRight, false);
     g.setColour (colour::soft);
     g.setFont (fonts->hand (14.0f));
-    g.drawText ("v0.2", juce::Rectangle<float> (694.0f, 44.0f, 40.0f, 18.0f), juce::Justification::centredLeft, false);
+    g.drawText ("v0.3", juce::Rectangle<float> (694.0f, 44.0f, 40.0f, 18.0f), juce::Justification::centredLeft, false);
 
     auto heading = [&] (const juce::String& text, float x, float y)
     {
@@ -197,19 +210,24 @@ void VibratoEditor::paint (juce::Graphics& g)
     g.drawText ("envelope", juce::Rectangle<float> (28.0f, y0 + 12.0f, 300.0f, 42.0f), juce::Justification::centredLeft, false);
 
     heading ("DETECTION",  28.0f,  y0 + 62.0f);
-    heading ("RATE MOVE",  188.0f, y0 + 62.0f);
-    heading ("DEPTH MOVE", 468.0f, y0 + 62.0f);
+    heading ("RATE MOVE",  28.0f,  y0 + 238.0f);
+    heading ("DEPTH MOVE", 352.0f, y0 + 238.0f);
 
-    stroke (g, line ({ 172.0f, y0 + 64.0f }, { 172.0f, y0 + 262.0f }, 31, 1.4f), 1.6f, colour::ink.withAlpha (0.6f));
-    stroke (g, line ({ 454.0f, y0 + 64.0f }, { 454.0f, y0 + 262.0f }, 32, 1.4f), 1.6f, colour::ink.withAlpha (0.6f));
+    stroke (g, line ({ 28.0f, y0 + 224.0f }, { 732.0f, y0 + 224.0f }, 33, 1.4f), 1.6f, colour::ink.withAlpha (0.6f));
+    stroke (g, line ({ 338.0f, y0 + 240.0f }, { 338.0f, y0 + 412.0f }, 32, 1.4f), 1.6f, colour::ink.withAlpha (0.6f));
 
     g.setColour (colour::soft);
     g.setFont (fonts->hand (14.0f));
-    g.drawText ("input", juce::Rectangle<float> (28.0f, y0 + 230.0f, 130.0f, 18.0f), juce::Justification::centredLeft, false);
+    g.drawText ("source", juce::Rectangle<float> (28.0f, y0 + 96.0f, 176.0f, 18.0f), juce::Justification::centredLeft, false);
+    const bool wantsSc = paramOn (pid::detSource);
+    g.drawText (wantsSc && ! proc.uiHasSidechain.load() ? juce::String ("no sidechain connected")
+                                                        : juce::String (juce::CharPointer_UTF8 ("detection \xc2\xb7 trig")),
+                juce::Rectangle<float> (28.0f, y0 + 194.0f, 190.0f, 18.0f), juce::Justification::centredLeft, false);
+    g.drawText ("hear the detection", juce::Rectangle<float> (604.0f, y0 + 150.0f, 134.0f, 18.0f), juce::Justification::centred, false);
     g.drawText (juce::String (juce::CharPointer_UTF8 ("attack: rate 1 \xe2\x86\x92 sustain: rate 2")),
-                juce::Rectangle<float> (188.0f, y0 + 236.0f, 260.0f, 18.0f), juce::Justification::centredLeft, false);
+                juce::Rectangle<float> (28.0f, y0 + 392.0f, 300.0f, 18.0f), juce::Justification::centredLeft, false);
     g.drawText (juce::String (juce::CharPointer_UTF8 ("trigger \xe2\x86\x92 delay \xe2\x86\x92 depth 1 \xe2\x86\x92 depth 2")),
-                juce::Rectangle<float> (468.0f, y0 + 236.0f, 270.0f, 18.0f), juce::Justification::centredLeft, false);
+                juce::Rectangle<float> (352.0f, y0 + 392.0f, 380.0f, 18.0f), juce::Justification::centredLeft, false);
 }
 
 void VibratoEditor::resized()
@@ -242,21 +260,30 @@ void VibratoEditor::resized()
     const int y0 = mainH;
     closeButton.setBounds (696, y0 + 18, 36, 36);
 
-    threshold.setBounds (40, y0 + 92, 100, 104);
-    meter.setBounds     (28, y0 + 208, 130, 18);
+    // Detection: source + meter on the left, four knobs, listen on the right.
+    source.setBounds (28, y0 + 116, 176, 30);
+    meter.setBounds  (28, y0 + 170, 190, 20);
+    int dx = 222;
+    for (auto* k : { &threshold, &contrast, &scHp, &scLp })
+    {
+        k->setBounds (dx, y0 + 82, 92, 108);
+        dx += 94;
+    }
+    listenButton.setBounds (610, y0 + 108, 122, 38);
 
-    rateMoveButton.setBounds  (392, y0 + 58, 52, 30);
-    depthMoveButton.setBounds (682, y0 + 58, 52, 30);
+    // Rate move / depth move.
+    rateMoveButton.setBounds  (272, y0 + 234, 52, 30);
+    depthMoveButton.setBounds (682, y0 + 234, 52, 30);
 
-    const int ky = y0 + 100;
-    rate1.setBounds     (186, ky, 84, 100);
-    rate1Sync.setBounds (186, ky, 84, 100);
-    rate2.setBounds     (274, ky, 84, 100);
-    rate2Sync.setBounds (274, ky, 84, 100);
-    rateTime.setBounds  (362, ky, 84, 100);
+    const int ky = y0 + 278;
+    rate1.setBounds     (22,  ky, 100, 100);
+    rate1Sync.setBounds (22,  ky, 100, 100);
+    rate2.setBounds     (122, ky, 100, 100);
+    rate2Sync.setBounds (122, ky, 100, 100);
+    rateTime.setBounds  (222, ky, 100, 100);
 
-    delay.setBounds     (462, ky, 68, 100);
-    depth1.setBounds    (530, ky, 68, 100);
-    depth2.setBounds    (598, ky, 68, 100);
-    depthTime.setBounds (666, ky, 68, 100);
+    delay.setBounds     (348, ky, 96, 100);
+    depth1.setBounds    (444, ky, 96, 100);
+    depth2.setBounds    (540, ky, 96, 100);
+    depthTime.setBounds (636, ky, 96, 100);
 }

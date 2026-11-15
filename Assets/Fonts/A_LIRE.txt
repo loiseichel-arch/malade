@@ -1,4 +1,4 @@
-Dépose ici les polices .ttf ou .otf (optionnel) :
+Polices intégrées au plugin (licence SIL Open Font License, voir les OFL-*.txt) :
   - PatrickHand-Regular.ttf  (texte)
-  - Caveat-Bold.ttf          (titres)
-Gratuites sur fonts.google.com. Sans elles, le plugin utilise Chalkboard SE et Marker Felt du Mac.
+  - Caveat-Bold.ttf          (titres ; instance statique graisse 700 de la police variable Caveat)
+Elles sont compilées dans le plugin : l'interface est la même sur Mac et Windows.
