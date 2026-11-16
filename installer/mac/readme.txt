@@ -24,6 +24,9 @@ PatchWork.
 Works on macOS 11 and later, Apple Silicon and Intel.
 To uninstall, delete the files listed above.
 
+The plug-in uses the fonts Patrick Hand and Caveat, under the SIL Open
+Font License (see the Licenses folder).
+
 -------------------------------------------------------------------------
 FRANÇAIS
 1. Double-clique sur « Install @NAME@.pkg » et suis les étapes (tu peux

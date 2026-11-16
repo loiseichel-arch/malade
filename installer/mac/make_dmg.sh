@@ -73,5 +73,9 @@ productbuild --distribution "$WORK/distribution.xml" --package-path "$WORK/pkgs"
              "$DMGDIR/Install $NAME.pkg"
 cp "$WORK/res/readme.txt" "$DMGDIR/Read me.txt"
 
+# Licences of the fonts embedded in the plug-in (SIL Open Font License).
+mkdir -p "$DMGDIR/Licenses"
+cp "$HERE/../../Assets/Fonts/"OFL-*.txt "$DMGDIR/Licenses/"
+
 hdiutil create -volname "$NAME $VERSION" -srcfolder "$DMGDIR" -ov -format UDZO "$OUT/$NAME-$VERSION-mac.dmg"
 echo "built $OUT/$NAME-$VERSION-mac.dmg"

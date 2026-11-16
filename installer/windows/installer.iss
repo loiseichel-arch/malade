@@ -43,5 +43,8 @@ Source: "{#SourceDir}\VST3\{#Name}.vst3\*"; DestDir: "{commoncf64}\VST3\{#Name}.
 Source: "{#SourceDir}\Standalone\{#Name}.exe"; DestDir: "{app}"; Components: app; Flags: ignoreversion
 Source: "{#SourceDir}\AAX\{#Name}.aaxplugin\*"; DestDir: "{commoncf64}\Avid\Audio\Plug-Ins\{#Name}.aaxplugin"; Components: aax; Flags: ignoreversion recursesubdirs createallsubdirs
 
+; Licences of the fonts embedded in the plug-in (SIL Open Font License).
+Source: "..\..\Assets\Fonts\OFL-*.txt"; DestDir: "{app}\Licenses"; Flags: ignoreversion
+
 [Icons]
 Name: "{autoprograms}\{#Name}"; Filename: "{app}\{#Name}.exe"; Components: app
