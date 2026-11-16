@@ -60,14 +60,16 @@ Tu peux aussi ouvrir `build/Malade.xcodeproj` dans Xcode et compiler depuis là.
 
 Sur Windows (Visual Studio) : `cmake -B build -A x64` puis `cmake --build build --config Release`.
 
-## Sans compiler : la compilation automatique sur GitHub
+## Télécharger et installer
 
-Le dossier `.github/workflows/` contient une recette qui fait compiler le plugin par un Mac de GitHub (gratuit pour un dépôt public, et dans la limite des minutes offertes pour un dépôt privé).
+Chaque envoi sur GitHub compile le plugin (onglet **Actions**, environ 15 minutes) et fabrique deux installateurs :
 
-1. Mets ce dossier dans un dépôt GitHub.
-2. Va dans l'onglet **Actions** du dépôt : une compilation « Build macOS » démarre à chaque envoi (ou clique sur *Run workflow*). Elle prend environ 10 à 20 minutes.
-3. Quand elle est verte, ouvre-la et télécharge en bas de la page **Malade-macOS-…** (Mac, universel Apple Silicon + Intel, macOS 11 et plus) ou **Malade-Windows** (Windows 64 bits : VST3, AAX, app).
-4. Suis `INSTALL_MAC.txt` ou `INSTALL_WINDOWS.txt`, inclus dans le téléchargement.
+- **Mac** : `Malade-<version>-mac.dmg`. Ouvre-le, double-clique sur « Install Malade.pkg » et choisis les formats (VST3, Audio Unit, app ; AAX en option). Universel Apple Silicon + Intel, macOS 11 et plus. L'installateur n'est pas signé par Apple : la première fois, fais clic droit > Ouvrir, ou Réglages Système > Confidentialité et sécurité > « Ouvrir quand même ». Plus besoin du Terminal ni de `sudo xattr` : les fichiers installés par l'installateur ne sont pas mis en quarantaine.
+- **Windows** : `Malade-<version>-windows-setup.exe` (VST3 et app ; AAX en option), 64 bits. Non signé : si Windows affiche « Windows a protégé votre ordinateur », clique sur « Informations complémentaires » puis « Exécuter quand même ».
+
+Pour donner le plugin à quelqu'un : une version marquée d'une étiquette (`v0.3.0`…) publie les deux installateurs sur la page **Releases** du dépôt, téléchargeables sans compte GitHub. Les fichiers de l'onglet Actions, eux, demandent d'être connecté et disparaissent après 30 jours.
+
+Les scripts : `installer/mac/make_dmg.sh` et `installer/windows/installer.iss`.
 
 ## Tester tout de suite
 
